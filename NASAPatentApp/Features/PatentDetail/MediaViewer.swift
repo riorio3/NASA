@@ -61,30 +61,17 @@ struct FullScreenImageViewer: View {
 struct ZoomableImageView: View {
     let urlString: String
 
-    @State private var scale: CGFloat = 1.0
-    @State private var anchor: UnitPoint = .center
-    @State private var offset: CGSize = .zero
-    @State private var isPinching: Bool = false
-
-    private let minScale: CGFloat = 1.0
-    private let maxScale: CGFloat = 5.0
-
     var body: some View {
         GeometryReader { geo in
             if let url = URL(string: urlString) {
                 AsyncImage(url: url) { phase in
                     switch phase {
                     case .success(let image):
-                        ZoomableImage(
-                            image: image,
-                            scale: $scale,
-                            anchor: $anchor,
-                            offset: $offset,
-                            isPinching: $isPinching,
-                            minScale: minScale,
-                            maxScale: maxScale,
-                            containerSize: geo.size
-                        )
+                        PinchZoomView(size: geo.size) {
+                            image
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                        }
                     case .failure:
                         imagePlaceholder
                             .frame(width: geo.size.width, height: geo.size.height)
@@ -112,144 +99,100 @@ struct ZoomableImageView: View {
     }
 }
 
-// MARK: - Zoomable Image with Gesture Handling
+// MARK: - Pinch Zoom View (UIKit-backed for proper gesture handling)
 
-struct ZoomableImage: View {
-    let image: Image
-    @Binding var scale: CGFloat
-    @Binding var anchor: UnitPoint
-    @Binding var offset: CGSize
-    @Binding var isPinching: Bool
+struct PinchZoomView<Content: View>: UIViewRepresentable {
+    let size: CGSize
+    let content: () -> Content
 
-    let minScale: CGFloat
-    let maxScale: CGFloat
-    let containerSize: CGSize
+    func makeUIView(context: Context) -> UIScrollView {
+        let scrollView = UIScrollView()
+        scrollView.delegate = context.coordinator
+        scrollView.minimumZoomScale = 1.0
+        scrollView.maximumZoomScale = 6.0
+        scrollView.bouncesZoom = true
+        scrollView.showsHorizontalScrollIndicator = false
+        scrollView.showsVerticalScrollIndicator = false
+        scrollView.backgroundColor = .clear
 
-    @State private var lastScale: CGFloat = 1.0
-    @State private var lastOffset: CGSize = .zero
-    @State private var doubleTapLocation: CGPoint = .zero
+        let hostingController = UIHostingController(rootView: content())
+        hostingController.view.backgroundColor = .clear
+        hostingController.view.translatesAutoresizingMaskIntoConstraints = false
 
-    var body: some View {
-        image
-            .resizable()
-            .aspectRatio(contentMode: .fit)
-            .scaleEffect(scale, anchor: anchor)
-            .offset(offset)
-            .gesture(pinchGesture)
-            .simultaneousGesture(panGesture)
-            .gesture(doubleTapGesture)
-            .frame(width: containerSize.width, height: containerSize.height)
-            .contentShape(Rectangle())
+        scrollView.addSubview(hostingController.view)
+        context.coordinator.hostingView = hostingController.view
+
+        NSLayoutConstraint.activate([
+            hostingController.view.widthAnchor.constraint(equalToConstant: size.width),
+            hostingController.view.heightAnchor.constraint(equalToConstant: size.height),
+            hostingController.view.centerXAnchor.constraint(equalTo: scrollView.contentLayoutGuide.centerXAnchor),
+            hostingController.view.centerYAnchor.constraint(equalTo: scrollView.contentLayoutGuide.centerYAnchor),
+        ])
+
+        // Double tap to zoom
+        let doubleTap = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handleDoubleTap(_:)))
+        doubleTap.numberOfTapsRequired = 2
+        scrollView.addGestureRecognizer(doubleTap)
+
+        return scrollView
     }
 
-    // MARK: - Pinch to Zoom
-
-    private var pinchGesture: some Gesture {
-        MagnificationGesture()
-            .onChanged { value in
-                isPinching = true
-                let delta = value / lastScale
-                lastScale = value
-
-                // Calculate new scale with limits
-                var newScale = scale * delta
-                newScale = min(max(newScale, minScale * 0.5), maxScale * 1.2) // Allow slight over-zoom for bounce
-
-                scale = newScale
-            }
-            .onEnded { _ in
-                lastScale = 1.0
-                isPinching = false
-
-                // Snap back with spring animation
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                    if scale < minScale {
-                        scale = minScale
-                        offset = .zero
-                        anchor = .center
-                    } else if scale > maxScale {
-                        scale = maxScale
-                    }
-                    constrainOffset()
-                }
-            }
+    func updateUIView(_ scrollView: UIScrollView, context: Context) {
+        // Update size if needed
     }
 
-    // MARK: - Pan/Drag
-
-    private var panGesture: some Gesture {
-        DragGesture()
-            .onChanged { value in
-                guard scale > 1 else { return }
-
-                let newOffset = CGSize(
-                    width: lastOffset.width + value.translation.width,
-                    height: lastOffset.height + value.translation.height
-                )
-                offset = newOffset
-            }
-            .onEnded { _ in
-                lastOffset = offset
-
-                // Constrain with animation
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                    constrainOffset()
-                    lastOffset = offset
-                }
-            }
+    func makeCoordinator() -> Coordinator {
+        Coordinator()
     }
 
-    // MARK: - Double Tap to Zoom
+    class Coordinator: NSObject, UIScrollViewDelegate {
+        var hostingView: UIView?
 
-    private var doubleTapGesture: some Gesture {
-        SpatialTapGesture(count: 2)
-            .onEnded { event in
-                let location = event.location
-
-                withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
-                    if scale > 1.1 {
-                        // Zoom out to 1x
-                        scale = 1.0
-                        offset = .zero
-                        lastOffset = .zero
-                        anchor = .center
-                    } else {
-                        // Zoom in to 3x at tap location
-                        let relativeX = location.x / containerSize.width
-                        let relativeY = location.y / containerSize.height
-                        anchor = UnitPoint(x: relativeX, y: relativeY)
-
-                        scale = 3.0
-
-                        // Calculate offset to keep tap point centered
-                        let targetScale: CGFloat = 3.0
-                        let offsetX = (0.5 - relativeX) * containerSize.width * (targetScale - 1)
-                        let offsetY = (0.5 - relativeY) * containerSize.height * (targetScale - 1)
-                        offset = CGSize(width: offsetX, height: offsetY)
-                        lastOffset = offset
-                    }
-                }
-            }
-    }
-
-    // MARK: - Constrain Offset
-
-    private func constrainOffset() {
-        guard scale > 1 else {
-            offset = .zero
-            return
+        func viewForZooming(in scrollView: UIScrollView) -> UIView? {
+            hostingView
         }
 
-        // Calculate max offsets based on scale
-        let maxOffsetX = (containerSize.width * (scale - 1)) / 2
-        let maxOffsetY = (containerSize.height * (scale - 1)) / 2
+        func scrollViewDidZoom(_ scrollView: UIScrollView) {
+            centerContent(in: scrollView)
+        }
 
-        // Clamp offset to keep image within bounds
-        var newOffset = offset
-        newOffset.width = min(max(newOffset.width, -maxOffsetX), maxOffsetX)
-        newOffset.height = min(max(newOffset.height, -maxOffsetY), maxOffsetY)
+        private func centerContent(in scrollView: UIScrollView) {
+            guard let view = hostingView else { return }
 
-        offset = newOffset
+            let offsetX = max((scrollView.bounds.width - scrollView.contentSize.width) / 2, 0)
+            let offsetY = max((scrollView.bounds.height - scrollView.contentSize.height) / 2, 0)
+
+            view.center = CGPoint(
+                x: scrollView.contentSize.width / 2 + offsetX,
+                y: scrollView.contentSize.height / 2 + offsetY
+            )
+        }
+
+        @objc func handleDoubleTap(_ gesture: UITapGestureRecognizer) {
+            guard let scrollView = gesture.view as? UIScrollView else { return }
+
+            if scrollView.zoomScale > 1.0 {
+                // Zoom out
+                scrollView.setZoomScale(1.0, animated: true)
+            } else {
+                // Zoom in to tap location
+                let location = gesture.location(in: hostingView)
+                let zoomRect = zoomRectFor(scale: 3.0, center: location, in: scrollView)
+                scrollView.zoom(to: zoomRect, animated: true)
+            }
+        }
+
+        private func zoomRectFor(scale: CGFloat, center: CGPoint, in scrollView: UIScrollView) -> CGRect {
+            let size = CGSize(
+                width: scrollView.bounds.width / scale,
+                height: scrollView.bounds.height / scale
+            )
+            let origin = CGPoint(
+                x: center.x - size.width / 2,
+                y: center.y - size.height / 2
+            )
+            return CGRect(origin: origin, size: size)
+        }
     }
 }
 
