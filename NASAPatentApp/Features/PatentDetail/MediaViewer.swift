@@ -62,9 +62,9 @@ struct ZoomableImageView: View {
     let urlString: String
 
     @State private var scale: CGFloat = 1.0
-    @State private var lastScale: CGFloat = 1.0
+    @State private var anchor: UnitPoint = .center
     @State private var offset: CGSize = .zero
-    @State private var lastOffset: CGSize = .zero
+    @State private var isPinching: Bool = false
 
     private let minScale: CGFloat = 1.0
     private let maxScale: CGFloat = 5.0
@@ -75,54 +75,16 @@ struct ZoomableImageView: View {
                 AsyncImage(url: url) { phase in
                     switch phase {
                     case .success(let image):
-                        image
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .scaleEffect(scale)
-                            .offset(offset)
-                            .gesture(
-                                MagnificationGesture()
-                                    .onChanged { value in
-                                        let delta = value / lastScale
-                                        lastScale = value
-                                        scale = min(max(scale * delta, minScale), maxScale)
-                                    }
-                                    .onEnded { _ in
-                                        lastScale = 1.0
-                                        if scale < minScale {
-                                            withAnimation(.spring()) {
-                                                scale = minScale
-                                                offset = .zero
-                                            }
-                                        }
-                                    }
-                            )
-                            .simultaneousGesture(
-                                DragGesture()
-                                    .onChanged { value in
-                                        if scale > 1 {
-                                            offset = CGSize(
-                                                width: lastOffset.width + value.translation.width,
-                                                height: lastOffset.height + value.translation.height
-                                            )
-                                        }
-                                    }
-                                    .onEnded { _ in
-                                        lastOffset = offset
-                                    }
-                            )
-                            .onTapGesture(count: 2) {
-                                withAnimation(.spring()) {
-                                    if scale > 1 {
-                                        scale = 1
-                                        offset = .zero
-                                        lastOffset = .zero
-                                    } else {
-                                        scale = 2.5
-                                    }
-                                }
-                            }
-                            .frame(width: geo.size.width, height: geo.size.height)
+                        ZoomableImage(
+                            image: image,
+                            scale: $scale,
+                            anchor: $anchor,
+                            offset: $offset,
+                            isPinching: $isPinching,
+                            minScale: minScale,
+                            maxScale: maxScale,
+                            containerSize: geo.size
+                        )
                     case .failure:
                         imagePlaceholder
                             .frame(width: geo.size.width, height: geo.size.height)
@@ -147,6 +109,147 @@ struct ZoomableImageView: View {
                 .font(.caption)
         }
         .foregroundStyle(.gray)
+    }
+}
+
+// MARK: - Zoomable Image with Gesture Handling
+
+struct ZoomableImage: View {
+    let image: Image
+    @Binding var scale: CGFloat
+    @Binding var anchor: UnitPoint
+    @Binding var offset: CGSize
+    @Binding var isPinching: Bool
+
+    let minScale: CGFloat
+    let maxScale: CGFloat
+    let containerSize: CGSize
+
+    @State private var lastScale: CGFloat = 1.0
+    @State private var lastOffset: CGSize = .zero
+    @State private var doubleTapLocation: CGPoint = .zero
+
+    var body: some View {
+        image
+            .resizable()
+            .aspectRatio(contentMode: .fit)
+            .scaleEffect(scale, anchor: anchor)
+            .offset(offset)
+            .gesture(pinchGesture)
+            .simultaneousGesture(panGesture)
+            .gesture(doubleTapGesture)
+            .frame(width: containerSize.width, height: containerSize.height)
+            .contentShape(Rectangle())
+    }
+
+    // MARK: - Pinch to Zoom
+
+    private var pinchGesture: some Gesture {
+        MagnificationGesture()
+            .onChanged { value in
+                isPinching = true
+                let delta = value / lastScale
+                lastScale = value
+
+                // Calculate new scale with limits
+                var newScale = scale * delta
+                newScale = min(max(newScale, minScale * 0.5), maxScale * 1.2) // Allow slight over-zoom for bounce
+
+                scale = newScale
+            }
+            .onEnded { _ in
+                lastScale = 1.0
+                isPinching = false
+
+                // Snap back with spring animation
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                    if scale < minScale {
+                        scale = minScale
+                        offset = .zero
+                        anchor = .center
+                    } else if scale > maxScale {
+                        scale = maxScale
+                    }
+                    constrainOffset()
+                }
+            }
+    }
+
+    // MARK: - Pan/Drag
+
+    private var panGesture: some Gesture {
+        DragGesture()
+            .onChanged { value in
+                guard scale > 1 else { return }
+
+                let newOffset = CGSize(
+                    width: lastOffset.width + value.translation.width,
+                    height: lastOffset.height + value.translation.height
+                )
+                offset = newOffset
+            }
+            .onEnded { _ in
+                lastOffset = offset
+
+                // Constrain with animation
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                    constrainOffset()
+                    lastOffset = offset
+                }
+            }
+    }
+
+    // MARK: - Double Tap to Zoom
+
+    private var doubleTapGesture: some Gesture {
+        SpatialTapGesture(count: 2)
+            .onEnded { event in
+                let location = event.location
+
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
+                    if scale > 1.1 {
+                        // Zoom out to 1x
+                        scale = 1.0
+                        offset = .zero
+                        lastOffset = .zero
+                        anchor = .center
+                    } else {
+                        // Zoom in to 3x at tap location
+                        let relativeX = location.x / containerSize.width
+                        let relativeY = location.y / containerSize.height
+                        anchor = UnitPoint(x: relativeX, y: relativeY)
+
+                        scale = 3.0
+
+                        // Calculate offset to keep tap point centered
+                        let targetScale: CGFloat = 3.0
+                        let offsetX = (0.5 - relativeX) * containerSize.width * (targetScale - 1)
+                        let offsetY = (0.5 - relativeY) * containerSize.height * (targetScale - 1)
+                        offset = CGSize(width: offsetX, height: offsetY)
+                        lastOffset = offset
+                    }
+                }
+            }
+    }
+
+    // MARK: - Constrain Offset
+
+    private func constrainOffset() {
+        guard scale > 1 else {
+            offset = .zero
+            return
+        }
+
+        // Calculate max offsets based on scale
+        let maxOffsetX = (containerSize.width * (scale - 1)) / 2
+        let maxOffsetY = (containerSize.height * (scale - 1)) / 2
+
+        // Clamp offset to keep image within bounds
+        var newOffset = offset
+        newOffset.width = min(max(newOffset.width, -maxOffsetX), maxOffsetX)
+        newOffset.height = min(max(newOffset.height, -maxOffsetY), maxOffsetY)
+
+        offset = newOffset
     }
 }
 
