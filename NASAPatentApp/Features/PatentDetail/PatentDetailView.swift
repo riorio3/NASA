@@ -265,7 +265,7 @@ struct PatentDetailView: View {
                 }
             }
 
-            if let portalURL = URL(string: "https://technology.nasa.gov/patent/\(patent.id)") {
+            if let portalURL = URL(string: "https://technology.nasa.gov/patent/\(patent.caseNumber)") {
                 Link(destination: portalURL) {
                     HStack {
                         Image(systemName: "globe")
