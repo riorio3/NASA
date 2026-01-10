@@ -61,17 +61,79 @@ struct FullScreenImageViewer: View {
 struct ZoomableImageView: View {
     let urlString: String
 
+    @State private var scale: CGFloat = 1.0
+    @State private var lastScale: CGFloat = 1.0
+    @State private var offset: CGSize = .zero
+    @State private var lastOffset: CGSize = .zero
+
+    private let minScale: CGFloat = 1.0
+    private let maxScale: CGFloat = 5.0
+
     var body: some View {
         GeometryReader { geo in
             if let url = URL(string: urlString) {
                 AsyncImage(url: url) { phase in
                     switch phase {
                     case .success(let image):
-                        PinchZoomView(size: geo.size) {
-                            image
-                                .resizable()
-                                .aspectRatio(contentMode: .fit)
-                        }
+                        image
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .scaleEffect(scale)
+                            .offset(offset)
+                            .frame(width: geo.size.width, height: geo.size.height)
+                            .contentShape(Rectangle())
+                            .gesture(
+                                SimultaneousGesture(
+                                    // Pinch to zoom
+                                    MagnificationGesture()
+                                        .onChanged { value in
+                                            let delta = value / lastScale
+                                            lastScale = value
+                                            scale = min(max(scale * delta, minScale), maxScale)
+                                        }
+                                        .onEnded { _ in
+                                            lastScale = 1.0
+                                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                                if scale < minScale {
+                                                    scale = minScale
+                                                    offset = .zero
+                                                    lastOffset = .zero
+                                                }
+                                            }
+                                        },
+                                    // Pan when zoomed
+                                    DragGesture()
+                                        .onChanged { value in
+                                            if scale > 1 {
+                                                offset = CGSize(
+                                                    width: lastOffset.width + value.translation.width,
+                                                    height: lastOffset.height + value.translation.height
+                                                )
+                                            }
+                                        }
+                                        .onEnded { _ in
+                                            lastOffset = offset
+                                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                                clampOffset(in: geo.size)
+                                            }
+                                        }
+                                )
+                            )
+                            .gesture(
+                                // Double tap to zoom
+                                TapGesture(count: 2)
+                                    .onEnded {
+                                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                            if scale > 1.0 {
+                                                scale = 1.0
+                                                offset = .zero
+                                                lastOffset = .zero
+                                            } else {
+                                                scale = 3.0
+                                            }
+                                        }
+                                    }
+                            )
                     case .failure:
                         imagePlaceholder
                             .frame(width: geo.size.width, height: geo.size.height)
@@ -88,6 +150,22 @@ struct ZoomableImageView: View {
         }
     }
 
+    private func clampOffset(in size: CGSize) {
+        guard scale > 1 else {
+            offset = .zero
+            lastOffset = .zero
+            return
+        }
+
+        // Allow panning based on how much the image extends beyond the view
+        let maxX = (size.width * (scale - 1)) / 2
+        let maxY = (size.height * (scale - 1)) / 2
+
+        offset.width = min(max(offset.width, -maxX), maxX)
+        offset.height = min(max(offset.height, -maxY), maxY)
+        lastOffset = offset
+    }
+
     private var imagePlaceholder: some View {
         VStack(spacing: 12) {
             Image(systemName: "photo")
@@ -96,103 +174,6 @@ struct ZoomableImageView: View {
                 .font(.caption)
         }
         .foregroundStyle(.gray)
-    }
-}
-
-// MARK: - Pinch Zoom View (UIKit-backed for proper gesture handling)
-
-struct PinchZoomView<Content: View>: UIViewRepresentable {
-    let size: CGSize
-    let content: () -> Content
-
-    func makeUIView(context: Context) -> UIScrollView {
-        let scrollView = UIScrollView()
-        scrollView.delegate = context.coordinator
-        scrollView.minimumZoomScale = 1.0
-        scrollView.maximumZoomScale = 6.0
-        scrollView.bouncesZoom = true
-        scrollView.showsHorizontalScrollIndicator = false
-        scrollView.showsVerticalScrollIndicator = false
-        scrollView.backgroundColor = .clear
-
-        let hostingController = UIHostingController(rootView: content())
-        hostingController.view.backgroundColor = .clear
-        hostingController.view.translatesAutoresizingMaskIntoConstraints = false
-
-        scrollView.addSubview(hostingController.view)
-        context.coordinator.hostingView = hostingController.view
-
-        NSLayoutConstraint.activate([
-            hostingController.view.widthAnchor.constraint(equalToConstant: size.width),
-            hostingController.view.heightAnchor.constraint(equalToConstant: size.height),
-            hostingController.view.centerXAnchor.constraint(equalTo: scrollView.contentLayoutGuide.centerXAnchor),
-            hostingController.view.centerYAnchor.constraint(equalTo: scrollView.contentLayoutGuide.centerYAnchor),
-        ])
-
-        // Double tap to zoom
-        let doubleTap = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handleDoubleTap(_:)))
-        doubleTap.numberOfTapsRequired = 2
-        scrollView.addGestureRecognizer(doubleTap)
-
-        return scrollView
-    }
-
-    func updateUIView(_ scrollView: UIScrollView, context: Context) {
-        // Update size if needed
-    }
-
-    func makeCoordinator() -> Coordinator {
-        Coordinator()
-    }
-
-    class Coordinator: NSObject, UIScrollViewDelegate {
-        var hostingView: UIView?
-
-        func viewForZooming(in scrollView: UIScrollView) -> UIView? {
-            hostingView
-        }
-
-        func scrollViewDidZoom(_ scrollView: UIScrollView) {
-            centerContent(in: scrollView)
-        }
-
-        private func centerContent(in scrollView: UIScrollView) {
-            guard let view = hostingView else { return }
-
-            let offsetX = max((scrollView.bounds.width - scrollView.contentSize.width) / 2, 0)
-            let offsetY = max((scrollView.bounds.height - scrollView.contentSize.height) / 2, 0)
-
-            view.center = CGPoint(
-                x: scrollView.contentSize.width / 2 + offsetX,
-                y: scrollView.contentSize.height / 2 + offsetY
-            )
-        }
-
-        @objc func handleDoubleTap(_ gesture: UITapGestureRecognizer) {
-            guard let scrollView = gesture.view as? UIScrollView else { return }
-
-            if scrollView.zoomScale > 1.0 {
-                // Zoom out
-                scrollView.setZoomScale(1.0, animated: true)
-            } else {
-                // Zoom in to tap location
-                let location = gesture.location(in: hostingView)
-                let zoomRect = zoomRectFor(scale: 3.0, center: location, in: scrollView)
-                scrollView.zoom(to: zoomRect, animated: true)
-            }
-        }
-
-        private func zoomRectFor(scale: CGFloat, center: CGPoint, in scrollView: UIScrollView) -> CGRect {
-            let size = CGSize(
-                width: scrollView.bounds.width / scale,
-                height: scrollView.bounds.height / scale
-            )
-            let origin = CGPoint(
-                x: center.x - size.width / 2,
-                y: center.y - size.height / 2
-            )
-            return CGRect(origin: origin, size: size)
-        }
     }
 }
 
