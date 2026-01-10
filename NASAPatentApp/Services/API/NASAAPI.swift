@@ -66,9 +66,109 @@ class NASAAPI {
 
     // MARK: - Get Patent by ID
     func getPatent(id: String) async throws -> Patent? {
-        // The T2 API doesn't have a direct ID lookup, so we search by the case number
         let patents = try await searchPatents(query: id)
         return patents.first { $0.id == id || $0.caseNumber == id }
+    }
+
+    // MARK: - Get Patent Detail (Scrapes full page)
+    func getPatentDetail(caseNumber: String) async throws -> PatentDetail {
+        let urlString = "https://technology.nasa.gov/patent/\(caseNumber)"
+        guard let url = URL(string: urlString) else {
+            throw NASAAPIError.invalidURL
+        }
+
+        let (data, response) = try await session.data(from: url)
+
+        guard let httpResponse = response as? HTTPURLResponse,
+              httpResponse.statusCode == 200 else {
+            throw NASAAPIError.invalidResponse
+        }
+
+        guard let html = String(data: data, encoding: .utf8) else {
+            throw NASAAPIError.invalidResponse
+        }
+
+        return parsePatentDetail(html: html, caseNumber: caseNumber)
+    }
+
+    // MARK: - HTML Parser
+    private func parsePatentDetail(html: String, caseNumber: String) -> PatentDetail {
+        // Extract title
+        let title = extractMatch(from: html, pattern: "<h1[^>]*>([^<]+)</h1>") ?? caseNumber
+
+        // Extract full description
+        var description = extractMatch(from: html, pattern: "<div class=\"description\"[^>]*>(.*?)</div>\\s*</div>") ?? ""
+        description = cleanHTML(description)
+
+        // Extract benefits
+        let benefitsSection = extractMatch(from: html, pattern: "<div class=\"benefits\">(.*?)</div>\\s*</div>") ?? ""
+        let benefits = extractListItems(from: benefitsSection)
+
+        // Extract applications
+        let appsSection = extractMatch(from: html, pattern: "<div class=\"applications\">(.*?)</div>\\s*</div>") ?? ""
+        let applications = extractListItems(from: appsSection)
+
+        // Extract all images (full size, not thumbnails)
+        let images = extractMatches(from: html, pattern: "src=\"(https://technology\\.nasa\\.gov/t2media/tops/img/[^\"]+)\"")
+
+        // Extract patent numbers
+        let patentNumbers = extractMatches(from: html, pattern: ">([0-9,D][0-9,]+)</a>")
+            .map { $0.replacingOccurrences(of: ",", with: "") }
+            .filter { $0.count >= 6 }
+
+        // Extract related technologies
+        let relatedSection = extractMatch(from: html, pattern: "<div class=\"related\">(.*?)</div>") ?? ""
+        let related = extractMatches(from: relatedSection, pattern: "href=\"/patent/([^\"]+)\"")
+
+        return PatentDetail(
+            id: caseNumber,
+            caseNumber: caseNumber,
+            title: title,
+            fullDescription: description,
+            benefits: benefits,
+            applications: applications,
+            images: images,
+            patentNumbers: patentNumbers,
+            relatedTechnologies: related
+        )
+    }
+
+    // MARK: - Regex Helpers
+    private func extractMatch(from text: String, pattern: String) -> String? {
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: [.dotMatchesLineSeparators, .caseInsensitive]),
+              let match = regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
+              match.numberOfRanges > 1,
+              let range = Range(match.range(at: 1), in: text) else {
+            return nil
+        }
+        return String(text[range])
+    }
+
+    private func extractMatches(from text: String, pattern: String) -> [String] {
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: [.dotMatchesLineSeparators, .caseInsensitive]) else {
+            return []
+        }
+        let matches = regex.matches(in: text, range: NSRange(text.startIndex..., in: text))
+        return matches.compactMap { match in
+            guard match.numberOfRanges > 1,
+                  let range = Range(match.range(at: 1), in: text) else { return nil }
+            return String(text[range])
+        }
+    }
+
+    private func extractListItems(from text: String) -> [String] {
+        let items = extractMatches(from: text, pattern: "<li>([^<]+)</li>")
+        return items.map { cleanHTML($0) }.filter { !$0.isEmpty }
+    }
+
+    private func cleanHTML(_ text: String) -> String {
+        text.replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
+            .replacingOccurrences(of: "&amp;", with: "&")
+            .replacingOccurrences(of: "&quot;", with: "\"")
+            .replacingOccurrences(of: "&#039;", with: "'")
+            .replacingOccurrences(of: "&nbsp;", with: " ")
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }
 

@@ -1,6 +1,6 @@
 import Foundation
 
-// MARK: - Patent Model
+// MARK: - Patent Model (Basic - from search API)
 struct Patent: Identifiable, Codable, Hashable {
     let id: String
     let title: String
@@ -10,7 +10,7 @@ struct Patent: Identifiable, Codable, Hashable {
     let patentNumber: String?
     let imageURL: String?
     let center: String?
-    let trl: String? // Technology Readiness Level
+    let trl: String?
 
     var usptoURL: URL? {
         guard let num = patentNumber else { return nil }
@@ -35,6 +35,23 @@ struct Patent: Identifiable, Codable, Hashable {
         case let c where c.contains("information"): return "doc.text"
         default: return "star"
         }
+    }
+}
+
+// MARK: - Patent Detail (Rich - from page scraping)
+struct PatentDetail: Identifiable {
+    let id: String
+    let caseNumber: String
+    let title: String
+    let fullDescription: String
+    let benefits: [String]
+    let applications: [String]
+    let images: [String]
+    let patentNumbers: [String]
+    let relatedTechnologies: [String]
+
+    var hasRichContent: Bool {
+        !benefits.isEmpty || !applications.isEmpty || images.count > 1 || !patentNumbers.isEmpty
     }
 }
 
