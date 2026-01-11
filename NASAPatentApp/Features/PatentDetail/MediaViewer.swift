@@ -258,16 +258,19 @@ struct VideoPlayerView: View {
 struct InAppVideoPlayer: View {
     let urlString: String
     @State private var player: AVPlayer?
+    @State private var hasError = false
+    @State private var isLoading = true
+    @Environment(\.openURL) private var openURL
 
     var body: some View {
         Group {
-            if let player = player {
+            if hasError {
+                errorView
+            } else if let player = player, !isLoading {
                 VideoPlayer(player: player)
                     .ignoresSafeArea()
             } else {
-                ProgressView()
-                    .scaleEffect(1.5)
-                    .tint(.white)
+                loadingView
             }
         }
         .onAppear {
@@ -279,11 +282,81 @@ struct InAppVideoPlayer: View {
         }
     }
 
+    private var loadingView: some View {
+        VStack(spacing: 20) {
+            ProgressView()
+                .scaleEffect(1.5)
+                .tint(.white)
+            Text("Loading video...")
+                .foregroundStyle(.white.opacity(0.7))
+        }
+    }
+
+    private var errorView: some View {
+        VStack(spacing: 20) {
+            Image(systemName: "exclamationmark.triangle")
+                .font(.system(size: 50))
+                .foregroundStyle(.orange)
+
+            Text("Unable to play video")
+                .font(.headline)
+                .foregroundStyle(.white)
+
+            if let url = URL(string: urlString) {
+                Button {
+                    openURL(url)
+                } label: {
+                    HStack {
+                        Image(systemName: "safari")
+                        Text("Open in Browser")
+                    }
+                    .font(.headline)
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 24)
+                    .padding(.vertical, 12)
+                    .background(Color.blue)
+                    .clipShape(Capsule())
+                }
+            }
+        }
+    }
+
     private func setupPlayer() {
-        guard let url = URL(string: urlString) else { return }
+        guard let url = URL(string: urlString) else {
+            hasError = true
+            isLoading = false
+            return
+        }
+
         let avPlayer = AVPlayer(url: url)
         player = avPlayer
-        avPlayer.play()
+
+        // Observe player status to know when ready or failed
+        let item = avPlayer.currentItem
+        Task {
+            // Wait a moment for the player to initialize
+            try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 sec
+
+            await MainActor.run {
+                if item?.status == .failed || item?.error != nil {
+                    hasError = true
+                    isLoading = false
+                } else {
+                    isLoading = false
+                    avPlayer.play()
+                }
+            }
+
+            // Timeout fallback - if still loading after 5 seconds, show error
+            try? await Task.sleep(nanoseconds: 5_000_000_000) // 5 sec
+
+            await MainActor.run {
+                if isLoading {
+                    hasError = true
+                    isLoading = false
+                }
+            }
+        }
     }
 }
 
