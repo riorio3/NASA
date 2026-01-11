@@ -18,8 +18,10 @@ struct DiscoveryView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 20) {
-                    // Category Pills
-                    categoryPills
+                    // Category Pills - only show when viewing results
+                    if hasSearched || !patents.isEmpty {
+                        categoryPills
+                    }
 
                     // Content
                     if isLoading {
