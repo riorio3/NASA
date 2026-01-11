@@ -182,18 +182,47 @@ struct ZoomableImageView: View {
 struct VideoPlayerView: View {
     let videoURL: String
     @Binding var isPresented: Bool
+    @Environment(\.openURL) private var openURL
 
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
 
-            if isYouTubeURL(videoURL) {
-                YouTubePlayerView(urlString: videoURL, isPresented: $isPresented)
-            } else {
-                NativeVideoPlayerView(urlString: videoURL)
+            VStack(spacing: 30) {
+                // Video icon
+                Image(systemName: isYouTubeURL(videoURL) ? "play.rectangle.fill" : "video.fill")
+                    .font(.system(size: 80))
+                    .foregroundStyle(isYouTubeURL(videoURL) ? .red : .blue)
+
+                Text(isYouTubeURL(videoURL) ? "YouTube Video" : "Video")
+                    .font(.title2.bold())
+                    .foregroundStyle(.white)
+
+                // Open button
+                if let url = URL(string: videoURL) {
+                    Button {
+                        openURL(url)
+                        isPresented = false
+                    } label: {
+                        HStack {
+                            Image(systemName: "play.fill")
+                            Text("Open Video")
+                        }
+                        .font(.headline)
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 32)
+                        .padding(.vertical, 16)
+                        .background(isYouTubeURL(videoURL) ? Color.red : Color.blue)
+                        .clipShape(Capsule())
+                    }
+                }
+
+                Text("Opens in browser or app")
+                    .font(.caption)
+                    .foregroundStyle(.gray)
             }
 
-            // Close button overlay
+            // Close button
             VStack {
                 HStack {
                     Spacer()
@@ -202,8 +231,7 @@ struct VideoPlayerView: View {
                     } label: {
                         Image(systemName: "xmark.circle.fill")
                             .font(.system(size: 32))
-                            .foregroundStyle(.white)
-                            .shadow(color: .black.opacity(0.5), radius: 4)
+                            .foregroundStyle(.white.opacity(0.8))
                             .padding()
                     }
                 }
@@ -214,165 +242,6 @@ struct VideoPlayerView: View {
 
     private func isYouTubeURL(_ url: String) -> Bool {
         url.contains("youtube.com") || url.contains("youtu.be")
-    }
-}
-
-// MARK: - Native Video Player (mp4)
-
-struct NativeVideoPlayerView: View {
-    let urlString: String
-    @Environment(\.openURL) private var openURL
-
-    var body: some View {
-        Group {
-            if let url = URL(string: urlString) {
-                SimpleVideoPlayer(url: url)
-            } else {
-                errorView
-            }
-        }
-    }
-
-    private var errorView: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "exclamationmark.triangle")
-                .font(.system(size: 50))
-                .foregroundStyle(.orange)
-            Text("Invalid video URL")
-                .font(.headline)
-                .foregroundStyle(.white)
-        }
-    }
-}
-
-// Simple wrapper that creates player on init
-struct SimpleVideoPlayer: View {
-    let url: URL
-    @State private var player: AVPlayer?
-    @Environment(\.openURL) private var openURL
-
-    var body: some View {
-        ZStack {
-            if let player = player {
-                VideoPlayer(player: player)
-                    .onDisappear {
-                        player.pause()
-                        player.replaceCurrentItem(with: nil)
-                    }
-            } else {
-                VStack(spacing: 20) {
-                    ProgressView()
-                        .scaleEffect(1.5)
-                        .tint(.white)
-                    Text("Loading video...")
-                        .foregroundStyle(.white.opacity(0.7))
-
-                    Button {
-                        openURL(url)
-                    } label: {
-                        HStack {
-                            Image(systemName: "safari")
-                            Text("Open in Browser")
-                        }
-                        .font(.subheadline)
-                        .foregroundStyle(.blue)
-                    }
-                    .padding(.top, 20)
-                }
-            }
-        }
-        .onAppear {
-            // Create player immediately
-            let avPlayer = AVPlayer(url: url)
-            avPlayer.play()
-            player = avPlayer
-        }
-    }
-}
-
-// MARK: - YouTube Web Player
-
-struct YouTubePlayerView: View {
-    let urlString: String
-    @Binding var isPresented: Bool
-
-    @Environment(\.openURL) private var openURL
-
-    var body: some View {
-        VStack(spacing: 24) {
-            // YouTube thumbnail
-            if let thumbnailURL = youTubeThumbnailURL(urlString) {
-                AsyncImage(url: thumbnailURL) { phase in
-                    switch phase {
-                    case .success(let image):
-                        image
-                            .resizable()
-                            .aspectRatio(16/9, contentMode: .fit)
-                            .clipShape(RoundedRectangle(cornerRadius: 12))
-                            .overlay(
-                                Image(systemName: "play.circle.fill")
-                                    .font(.system(size: 70))
-                                    .foregroundStyle(.white)
-                                    .shadow(color: .black.opacity(0.5), radius: 8)
-                            )
-                    default:
-                        RoundedRectangle(cornerRadius: 12)
-                            .fill(Color.gray.opacity(0.3))
-                            .aspectRatio(16/9, contentMode: .fit)
-                            .overlay(
-                                Image(systemName: "play.rectangle.fill")
-                                    .font(.system(size: 60))
-                                    .foregroundStyle(.red)
-                            )
-                    }
-                }
-                .frame(maxWidth: 350)
-            } else {
-                Image(systemName: "play.rectangle.fill")
-                    .font(.system(size: 80))
-                    .foregroundStyle(.red)
-            }
-
-            Text("YouTube Video")
-                .font(.title2.bold())
-                .foregroundStyle(.white)
-
-            if let url = URL(string: urlString) {
-                Button {
-                    openURL(url)
-                    // Close the viewer after opening YouTube
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                        isPresented = false
-                    }
-                } label: {
-                    HStack {
-                        Image(systemName: "play.fill")
-                        Text("Watch on YouTube")
-                    }
-                    .font(.headline)
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 28)
-                    .padding(.vertical, 14)
-                    .background(Color.red)
-                    .clipShape(Capsule())
-                }
-            }
-
-            Text("Tap to open in YouTube app")
-                .font(.caption)
-                .foregroundStyle(.gray)
-        }
-    }
-
-    private func youTubeThumbnailURL(_ url: String) -> URL? {
-        var videoID: String?
-        if url.contains("youtube.com/watch?v=") {
-            videoID = url.components(separatedBy: "v=").last?.components(separatedBy: "&").first
-        } else if url.contains("youtu.be/") {
-            videoID = url.components(separatedBy: "youtu.be/").last?.components(separatedBy: "?").first
-        }
-        guard let id = videoID else { return nil }
-        return URL(string: "https://img.youtube.com/vi/\(id)/hqdefault.jpg")
     }
 }
 
