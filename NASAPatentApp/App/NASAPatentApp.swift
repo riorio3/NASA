@@ -20,6 +20,11 @@ struct ContentView: View {
                     Label("Discover", systemImage: "magnifyingglass")
                 }
 
+            ProblemSolverView()
+                .tabItem {
+                    Label("Solve", systemImage: "lightbulb")
+                }
+
             SavedPatentsView()
                 .tabItem {
                     Label("Saved", systemImage: "bookmark.fill")

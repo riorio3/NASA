@@ -134,6 +134,117 @@ class AIService {
         }
         return String(text[startIndex...endIndex])
     }
+
+    // MARK: - Find Patents for Problem
+
+    func findPatentsForProblem(_ problem: String, patents: [Patent]) async throws -> ProblemSolution {
+        guard let apiKey = KeychainService.shared.getAPIKey(), !apiKey.isEmpty else {
+            throw AIServiceError.noAPIKey
+        }
+
+        let prompt = buildProblemSolverPrompt(problem: problem, patents: patents)
+        let response = try await sendRequest(prompt: prompt, apiKey: apiKey)
+        return try parseProblemSolution(response, problem: problem)
+    }
+
+    func extractSearchTerms(from problem: String) async throws -> [String] {
+        guard let apiKey = KeychainService.shared.getAPIKey(), !apiKey.isEmpty else {
+            throw AIServiceError.noAPIKey
+        }
+
+        let prompt = """
+        Extract 3-5 search keywords from this problem description that would help find relevant NASA patents.
+        Focus on technical terms, materials, processes, or phenomena.
+
+        Problem: \(problem)
+
+        Return ONLY a JSON array of strings, nothing else:
+        ["keyword1", "keyword2", "keyword3"]
+        """
+
+        let response = try await sendRequest(prompt: prompt, apiKey: apiKey)
+
+        // Parse JSON array
+        let cleaned = response.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let data = cleaned.data(using: .utf8),
+              let keywords = try? JSONDecoder().decode([String].self, from: data) else {
+            // Fallback: split problem into words
+            return problem.components(separatedBy: .whitespaces)
+                .filter { $0.count > 4 }
+                .prefix(3)
+                .map { String($0) }
+        }
+
+        return keywords
+    }
+
+    private func buildProblemSolverPrompt(problem: String, patents: [Patent]) -> String {
+        let patentList = patents.prefix(15).enumerated().map { index, patent in
+            """
+            [\(index + 1)] \(patent.title)
+            Case: \(patent.caseNumber)
+            Category: \(patent.category)
+            Description: \(patent.description.prefix(300))...
+            """
+        }.joined(separator: "\n\n")
+
+        return """
+        You are a NASA technology transfer specialist helping entrepreneurs find NASA patents to solve real-world problems.
+
+        USER'S PROBLEM:
+        \(problem)
+
+        AVAILABLE NASA PATENTS:
+        \(patentList)
+
+        Analyze which patents could help solve this problem. Return your response in this exact JSON format:
+
+        {
+            "summary": "Brief explanation of how NASA technology can help with this problem",
+            "matches": [
+                {
+                    "patentIndex": 1,
+                    "relevanceScore": 85,
+                    "explanation": "How this specific patent addresses the user's problem",
+                    "applicationIdea": "Concrete way to apply this technology to their situation"
+                }
+            ],
+            "additionalSuggestions": "Any other advice or alternative approaches"
+        }
+
+        Rules:
+        - Only include patents with relevanceScore >= 60
+        - Sort by relevanceScore descending
+        - Maximum 5 matches
+        - Be specific about how each technology applies
+        - If no patents are relevant, return empty matches array with helpful summary
+        - Return ONLY the JSON, no additional text
+        """
+    }
+
+    private func parseProblemSolution(_ response: String, problem: String) throws -> ProblemSolution {
+        let jsonString = extractJSON(from: response)
+
+        guard let data = jsonString.data(using: .utf8) else {
+            throw AIServiceError.parsingError
+        }
+
+        let parsed = try JSONDecoder().decode(ProblemSolutionJSON.self, from: data)
+
+        return ProblemSolution(
+            problem: problem,
+            summary: parsed.summary,
+            matches: parsed.matches.map {
+                PatentMatch(
+                    patentIndex: $0.patentIndex - 1, // Convert to 0-based
+                    relevanceScore: $0.relevanceScore,
+                    explanation: $0.explanation,
+                    applicationIdea: $0.applicationIdea
+                )
+            },
+            additionalSuggestions: parsed.additionalSuggestions
+        )
+    }
 }
 
 // MARK: - JSON Parsing Models
@@ -162,6 +273,35 @@ private struct RoadmapJSON: Codable {
     let step: Int?
     let title: String
     let description: String
+}
+
+private struct ProblemSolutionJSON: Codable {
+    let summary: String
+    let matches: [PatentMatchJSON]
+    let additionalSuggestions: String
+}
+
+private struct PatentMatchJSON: Codable {
+    let patentIndex: Int
+    let relevanceScore: Int
+    let explanation: String
+    let applicationIdea: String
+}
+
+// MARK: - Problem Solution Models
+
+struct ProblemSolution {
+    let problem: String
+    let summary: String
+    let matches: [PatentMatch]
+    let additionalSuggestions: String
+}
+
+struct PatentMatch {
+    let patentIndex: Int
+    let relevanceScore: Int
+    let explanation: String
+    let applicationIdea: String
 }
 
 // MARK: - Errors

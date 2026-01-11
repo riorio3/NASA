@@ -20,6 +20,7 @@
 		A1000011 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000011 /* SettingsView.swift */; };
 		A1000012 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A2000012 /* Assets.xcassets */; };
 		A1000013 /* MediaViewer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000013 /* MediaViewer.swift */; };
+		A1000014 /* ProblemSolverView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000014 /* ProblemSolverView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -36,6 +37,7 @@
 		A2000011 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		A2000012 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		A2000013 /* MediaViewer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaViewer.swift; sourceTree = "<group>"; };
+		A2000014 /* ProblemSolverView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProblemSolverView.swift; sourceTree = "<group>"; };
 		A3000001 /* NASAPatentApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = NASAPatentApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -91,6 +93,7 @@
 				A5000007 /* Discovery */,
 				A5000008 /* PatentDetail */,
 				A5000009 /* AIAnalysis */,
+				A5000014 /* ProblemSolver */,
 				A5000010 /* Licensing */,
 			);
 			path = Features;
@@ -139,6 +142,14 @@
 				A2000011 /* SettingsView.swift */,
 			);
 			path = Licensing;
+			sourceTree = "<group>";
+		};
+		A5000014 /* ProblemSolver */ = {
+			isa = PBXGroup;
+			children = (
+				A2000014 /* ProblemSolverView.swift */,
+			);
+			path = ProblemSolver;
 			sourceTree = "<group>";
 		};
 		A5000011 /* API */ = {
@@ -247,6 +258,7 @@
 				A1000010 /* SavedPatentsView.swift in Sources */,
 				A1000011 /* SettingsView.swift in Sources */,
 				A1000013 /* MediaViewer.swift in Sources */,
+				A1000014 /* ProblemSolverView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
