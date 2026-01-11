@@ -265,46 +265,180 @@ struct VideoPlayerView: View {
     }
 }
 
-// MARK: - Native Video Player (AVPlayerViewController)
+// MARK: - Native Video Player (AVPlayerViewController with Error Handling)
 
 struct NativeVideoPlayer: UIViewControllerRepresentable {
     let url: URL
     @Binding var isPresented: Bool
 
-    func makeUIViewController(context: Context) -> AVPlayerViewController {
-        let player = AVPlayer(url: url)
-        let controller = AVPlayerViewController()
-        controller.player = player
-        controller.delegate = context.coordinator
-
-        // Start playing automatically
-        player.play()
-
+    func makeUIViewController(context: Context) -> UIViewController {
+        let controller = VideoPlayerHostController(url: url, isPresented: $isPresented)
         return controller
     }
 
-    func updateUIViewController(_ uiViewController: AVPlayerViewController, context: Context) {
-        // No updates needed
-    }
+    func updateUIViewController(_ uiViewController: UIViewController, context: Context) {}
 
     func makeCoordinator() -> Coordinator {
         Coordinator(isPresented: $isPresented)
     }
 
-    class Coordinator: NSObject, AVPlayerViewControllerDelegate {
+    class Coordinator: NSObject {
         @Binding var isPresented: Bool
 
         init(isPresented: Binding<Bool>) {
             _isPresented = isPresented
         }
+    }
+}
 
-        func playerViewController(
-            _ playerViewController: AVPlayerViewController,
-            willEndFullScreenPresentationWithAnimationCoordinator coordinator: any UIViewControllerTransitionCoordinator
-        ) {
-            // User dismissed the player
-            isPresented = false
+// Custom host controller for better error handling
+class VideoPlayerHostController: UIViewController {
+    private let url: URL
+    private var isPresented: Binding<Bool>
+    private var playerViewController: AVPlayerViewController?
+    private var player: AVPlayer?
+    private var errorObservation: NSKeyValueObservation?
+    private var statusObservation: NSKeyValueObservation?
+
+    init(url: URL, isPresented: Binding<Bool>) {
+        self.url = url
+        self.isPresented = isPresented
+        super.init(nibName: nil, bundle: nil)
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        view.backgroundColor = .black
+        setupPlayer()
+    }
+
+    private func setupPlayer() {
+        let asset = AVURLAsset(url: url)
+        let playerItem = AVPlayerItem(asset: asset)
+
+        // Observe player item status for errors
+        statusObservation = playerItem.observe(\.status, options: [.new]) { [weak self] item, _ in
+            DispatchQueue.main.async {
+                switch item.status {
+                case .failed:
+                    self?.showError(item.error?.localizedDescription ?? "Failed to load video")
+                case .readyToPlay:
+                    // Video is ready, start playing
+                    self?.player?.play()
+                default:
+                    break
+                }
+            }
         }
+
+        // Observe for errors
+        errorObservation = playerItem.observe(\.error, options: [.new]) { [weak self] item, _ in
+            if let error = item.error {
+                DispatchQueue.main.async {
+                    self?.showError(error.localizedDescription)
+                }
+            }
+        }
+
+        player = AVPlayer(playerItem: playerItem)
+        playerViewController = AVPlayerViewController()
+        playerViewController?.player = player
+        playerViewController?.delegate = self
+
+        if let playerVC = playerViewController {
+            addChild(playerVC)
+            playerVC.view.frame = view.bounds
+            playerVC.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+            view.addSubview(playerVC.view)
+            playerVC.didMove(toParent: self)
+        }
+    }
+
+    private func showError(_ message: String) {
+        // Remove player
+        playerViewController?.view.removeFromSuperview()
+        playerViewController?.removeFromParent()
+
+        // Show error UI
+        let errorView = UIView(frame: view.bounds)
+        errorView.backgroundColor = .black
+        errorView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+
+        let stack = UIStackView()
+        stack.axis = .vertical
+        stack.spacing = 16
+        stack.alignment = .center
+        stack.translatesAutoresizingMaskIntoConstraints = false
+
+        let icon = UIImageView(image: UIImage(systemName: "exclamationmark.triangle.fill"))
+        icon.tintColor = .orange
+        icon.contentMode = .scaleAspectFit
+        icon.translatesAutoresizingMaskIntoConstraints = false
+        icon.heightAnchor.constraint(equalToConstant: 60).isActive = true
+        icon.widthAnchor.constraint(equalToConstant: 60).isActive = true
+
+        let title = UILabel()
+        title.text = "Unable to Play Video"
+        title.font = .boldSystemFont(ofSize: 20)
+        title.textColor = .white
+
+        let detail = UILabel()
+        detail.text = message
+        detail.font = .systemFont(ofSize: 14)
+        detail.textColor = .gray
+        detail.numberOfLines = 0
+        detail.textAlignment = .center
+
+        let urlLabel = UILabel()
+        urlLabel.text = url.absoluteString
+        urlLabel.font = .systemFont(ofSize: 10)
+        urlLabel.textColor = .darkGray
+        urlLabel.numberOfLines = 2
+        urlLabel.textAlignment = .center
+
+        let closeButton = UIButton(type: .system)
+        closeButton.setTitle("Close", for: .normal)
+        closeButton.titleLabel?.font = .systemFont(ofSize: 17)
+        closeButton.addTarget(self, action: #selector(closeTapped), for: .touchUpInside)
+
+        stack.addArrangedSubview(icon)
+        stack.addArrangedSubview(title)
+        stack.addArrangedSubview(detail)
+        stack.addArrangedSubview(urlLabel)
+        stack.addArrangedSubview(closeButton)
+
+        errorView.addSubview(stack)
+        NSLayoutConstraint.activate([
+            stack.centerXAnchor.constraint(equalTo: errorView.centerXAnchor),
+            stack.centerYAnchor.constraint(equalTo: errorView.centerYAnchor),
+            stack.leadingAnchor.constraint(greaterThanOrEqualTo: errorView.leadingAnchor, constant: 32),
+            stack.trailingAnchor.constraint(lessThanOrEqualTo: errorView.trailingAnchor, constant: -32)
+        ])
+
+        view.addSubview(errorView)
+    }
+
+    @objc private func closeTapped() {
+        isPresented.wrappedValue = false
+    }
+
+    deinit {
+        errorObservation?.invalidate()
+        statusObservation?.invalidate()
+        player?.pause()
+    }
+}
+
+extension VideoPlayerHostController: AVPlayerViewControllerDelegate {
+    func playerViewController(
+        _ playerViewController: AVPlayerViewController,
+        willEndFullScreenPresentationWithAnimationCoordinator coordinator: any UIViewControllerTransitionCoordinator
+    ) {
+        isPresented.wrappedValue = false
     }
 }
 

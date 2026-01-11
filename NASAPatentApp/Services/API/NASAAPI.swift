@@ -143,41 +143,48 @@ class NASAAPI {
         // Extract video URLs - comprehensive patterns
         var videos: [String] = []
 
-        // 1. Direct MP4/video files (any source)
-        videos.append(contentsOf: extractMatches(from: html, pattern: "src=[\"'](https?://[^\"']+\\.mp4)[\"']"))
-        videos.append(contentsOf: extractMatches(from: html, pattern: "src=[\"'](https?://[^\"']+\\.m4v)[\"']"))
-        videos.append(contentsOf: extractMatches(from: html, pattern: "src=[\"'](https?://[^\"']+\\.mov)[\"']"))
-        videos.append(contentsOf: extractMatches(from: html, pattern: "src=[\"'](https?://[^\"']+\\.webm)[\"']"))
+        // 1. Direct video files in src attributes
+        videos.append(contentsOf: extractMatches(from: html, pattern: "src=[\"']([^\"']+\\.mp4)[\"']"))
+        videos.append(contentsOf: extractMatches(from: html, pattern: "src=[\"']([^\"']+\\.m4v)[\"']"))
+        videos.append(contentsOf: extractMatches(from: html, pattern: "src=[\"']([^\"']+\\.mov)[\"']"))
+        videos.append(contentsOf: extractMatches(from: html, pattern: "src=[\"']([^\"']+\\.webm)[\"']"))
 
-        // 2. Video source tags (inside <video> elements)
-        videos.append(contentsOf: extractMatches(from: html, pattern: "<source[^>]+src=[\"'](https?://[^\"']+)[\"'][^>]+type=[\"']video"))
-        videos.append(contentsOf: extractMatches(from: html, pattern: "<source[^>]+type=[\"']video[^\"']+[\"'][^>]+src=[\"'](https?://[^\"']+)[\"']"))
+        // 2. Video source tags
+        videos.append(contentsOf: extractMatches(from: html, pattern: "<source[^>]+src=[\"']([^\"']+)[\"'][^>]*type=[\"']video/"))
 
-        // 3. NASA T2 media videos specifically
-        videos.append(contentsOf: extractMatches(from: html, pattern: "[\"'](https://technology\\.nasa\\.gov/t2media/[^\"']+\\.(mp4|m4v|mov|webm))[\"']"))
+        // 3. AWS S3 URLs (NASA uses ntts-prod.s3.amazonaws.com)
+        videos.append(contentsOf: extractMatches(from: html, pattern: "[\"'](https://[^\"']*s3[^\"']*amazonaws\\.com[^\"']+\\.mp4)[\"']"))
 
-        // 4. AWS CloudFront (common NASA CDN)
-        videos.append(contentsOf: extractMatches(from: html, pattern: "[\"'](https://[^\"']*\\.cloudfront\\.net/[^\"']+\\.(mp4|m4v|mov|webm))[\"']"))
-
-        // 5. YouTube embeds - convert to watch URLs
-        let youtubeEmbeds = extractMatches(from: html, pattern: "src=[\"'](https?://(?:www\\.)?youtube\\.com/embed/[^\"'?]+)")
-        for embed in youtubeEmbeds {
-            if let videoID = embed.components(separatedBy: "/embed/").last {
-                videos.append("https://www.youtube.com/watch?v=\(videoID)")
-            }
+        // 4. YouTube embeds - convert to watch URLs
+        let youtubeEmbeds = extractMatches(from: html, pattern: "src=[\"']https?://(?:www\\.)?youtube\\.com/embed/([^\"'?]+)")
+        for videoID in youtubeEmbeds {
+            videos.append("https://www.youtube.com/watch?v=\(videoID)")
         }
 
-        // 6. YouTube watch links
-        videos.append(contentsOf: extractMatches(from: html, pattern: "href=[\"'](https?://(?:www\\.)?youtube\\.com/watch\\?v=[^\"'&]+)"))
+        // 5. YouTube watch links (extract full URL)
+        videos.append(contentsOf: extractMatches(from: html, pattern: "href=[\"'](https?://(?:www\\.)?youtube\\.com/watch\\?v=[^\"'&]+)[\"']"))
 
-        // 7. YouTube short links
-        videos.append(contentsOf: extractMatches(from: html, pattern: "href=[\"'](https?://youtu\\.be/[^\"'?]+)"))
+        // 6. YouTube short links
+        videos.append(contentsOf: extractMatches(from: html, pattern: "href=[\"'](https?://youtu\\.be/[^\"'?]+)[\"']"))
 
-        // 8. Data attributes (some sites use data-src or data-video)
-        videos.append(contentsOf: extractMatches(from: html, pattern: "data-(?:src|video|url)=[\"'](https?://[^\"']+\\.(mp4|m4v|mov|webm))[\"']"))
+        // 7. Any href to video files
+        videos.append(contentsOf: extractMatches(from: html, pattern: "href=[\"']([^\"']+\\.mp4)[\"']"))
 
-        // Remove duplicates and empty strings
-        videos = Array(Set(videos.filter { !$0.isEmpty }))
+        // Clean up URLs - make relative URLs absolute
+        videos = videos.compactMap { url -> String? in
+            var cleanURL = url.trimmingCharacters(in: .whitespacesAndNewlines)
+            if cleanURL.isEmpty { return nil }
+            // Make relative URLs absolute
+            if cleanURL.hasPrefix("/") {
+                cleanURL = "https://technology.nasa.gov\(cleanURL)"
+            } else if !cleanURL.hasPrefix("http") {
+                cleanURL = "https://technology.nasa.gov/\(cleanURL)"
+            }
+            return cleanURL
+        }
+
+        // Remove duplicates
+        videos = Array(Set(videos))
 
         // Extract patent numbers
         let patentNumbers = extractMatches(from: html, pattern: ">([0-9,D][0-9,]+)</a>")
