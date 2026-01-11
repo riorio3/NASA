@@ -7,13 +7,22 @@ class KeychainService {
     private let service = "com.nasapatentapp.apikey"
     private let account = "claude-api-key"
 
+    // Cache to avoid repeated Keychain queries
+    private var cachedKey: String?
+    private var hasCached = false
+
     private init() {}
 
     func saveAPIKey(_ key: String) {
         guard let data = key.data(using: .utf8) else { return }
 
-        // Delete existing key first
-        deleteAPIKey()
+        // Delete existing key first (without clearing cache)
+        let deleteQuery: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account
+        ]
+        SecItemDelete(deleteQuery as CFDictionary)
 
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
@@ -21,11 +30,19 @@ class KeychainService {
             kSecAttrAccount as String: account,
             kSecValueData as String: data
         ]
-
         SecItemAdd(query as CFDictionary, nil)
+
+        // Update cache after saving
+        cachedKey = key
+        hasCached = true
     }
 
     func getAPIKey() -> String? {
+        // Return cached value if available
+        if hasCached {
+            return cachedKey
+        }
+
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -37,16 +54,24 @@ class KeychainService {
         var result: AnyObject?
         let status = SecItemCopyMatching(query as CFDictionary, &result)
 
-        guard status == errSecSuccess,
-              let data = result as? Data,
-              let key = String(data: data, encoding: .utf8) else {
-            return nil
+        if status == errSecSuccess,
+           let data = result as? Data,
+           let key = String(data: data, encoding: .utf8) {
+            cachedKey = key
+            hasCached = true
+            return key
         }
 
-        return key
+        hasCached = true
+        cachedKey = nil
+        return nil
     }
 
     func deleteAPIKey() {
+        // Clear cache
+        cachedKey = nil
+        hasCached = false
+
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,

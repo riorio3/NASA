@@ -44,12 +44,17 @@ struct ContentView: View {
 class PatentStore: ObservableObject {
     @Published var savedPatents: [Patent] = []
     @Published var apiKey: String = ""
+    @Published var isReady = false
 
     private let savedPatentsKey = "savedPatents"
 
     init() {
-        loadSavedPatents()
-        loadAPIKey()
+        // Defer loading to not block app launch
+        Task { @MainActor in
+            loadSavedPatents()
+            loadAPIKey()
+            isReady = true
+        }
     }
 
     func savePatent(_ patent: Patent) {
