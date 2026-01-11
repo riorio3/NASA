@@ -1,5 +1,6 @@
 import SwiftUI
 import AVKit
+import WebKit
 
 // MARK: - Full Screen Zoomable Image Viewer
 
@@ -253,110 +254,69 @@ struct VideoPlayerView: View {
     }
 }
 
-// MARK: - In-App Video Player
+// MARK: - In-App Video Player (WebView-based for better compatibility)
 
 struct InAppVideoPlayer: View {
     let urlString: String
-    @State private var player: AVPlayer?
-    @State private var hasError = false
-    @State private var isLoading = true
-    @Environment(\.openURL) private var openURL
 
     var body: some View {
-        Group {
-            if hasError {
-                errorView
-            } else if let player = player, !isLoading {
-                VideoPlayer(player: player)
-                    .ignoresSafeArea()
-            } else {
-                loadingView
-            }
-        }
-        .onAppear {
-            setupPlayer()
-        }
-        .onDisappear {
-            player?.pause()
-            player = nil
-        }
+        WebVideoPlayer(urlString: urlString)
+            .ignoresSafeArea()
+    }
+}
+
+// UIViewRepresentable wrapper for WKWebView video playback
+struct WebVideoPlayer: UIViewRepresentable {
+    let urlString: String
+
+    func makeUIView(context: Context) -> WKWebView {
+        let config = WKWebViewConfiguration()
+        config.allowsInlineMediaPlayback = true
+        config.mediaTypesRequiringUserActionForPlayback = []
+
+        let webView = WKWebView(frame: .zero, configuration: config)
+        webView.backgroundColor = .black
+        webView.isOpaque = false
+        webView.scrollView.backgroundColor = .black
+
+        return webView
     }
 
-    private var loadingView: some View {
-        VStack(spacing: 20) {
-            ProgressView()
-                .scaleEffect(1.5)
-                .tint(.white)
-            Text("Loading video...")
-                .foregroundStyle(.white.opacity(0.7))
-        }
-    }
-
-    private var errorView: some View {
-        VStack(spacing: 20) {
-            Image(systemName: "exclamationmark.triangle")
-                .font(.system(size: 50))
-                .foregroundStyle(.orange)
-
-            Text("Unable to play video")
-                .font(.headline)
-                .foregroundStyle(.white)
-
-            if let url = URL(string: urlString) {
-                Button {
-                    openURL(url)
-                } label: {
-                    HStack {
-                        Image(systemName: "safari")
-                        Text("Open in Browser")
-                    }
-                    .font(.headline)
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 24)
-                    .padding(.vertical, 12)
-                    .background(Color.blue)
-                    .clipShape(Capsule())
+    func updateUIView(_ webView: WKWebView, context: Context) {
+        // Create HTML that plays the video
+        let html = """
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+            <style>
+                * { margin: 0; padding: 0; }
+                body {
+                    background: black;
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                    height: 100vh;
+                    overflow: hidden;
                 }
-            }
-        }
-    }
-
-    private func setupPlayer() {
-        guard let url = URL(string: urlString) else {
-            hasError = true
-            isLoading = false
-            return
-        }
-
-        let avPlayer = AVPlayer(url: url)
-        player = avPlayer
-
-        // Observe player status to know when ready or failed
-        let item = avPlayer.currentItem
-        Task {
-            // Wait a moment for the player to initialize
-            try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 sec
-
-            await MainActor.run {
-                if item?.status == .failed || item?.error != nil {
-                    hasError = true
-                    isLoading = false
-                } else {
-                    isLoading = false
-                    avPlayer.play()
+                video {
+                    max-width: 100%;
+                    max-height: 100%;
+                    width: auto;
+                    height: auto;
                 }
-            }
+            </style>
+        </head>
+        <body>
+            <video controls autoplay playsinline>
+                <source src="\(urlString)" type="video/mp4">
+                Your browser does not support the video tag.
+            </video>
+        </body>
+        </html>
+        """
 
-            // Timeout fallback - if still loading after 5 seconds, show error
-            try? await Task.sleep(nanoseconds: 5_000_000_000) // 5 sec
-
-            await MainActor.run {
-                if isLoading {
-                    hasError = true
-                    isLoading = false
-                }
-            }
-        }
+        webView.loadHTMLString(html, baseURL: URL(string: urlString)?.deletingLastPathComponent())
     }
 }
 
