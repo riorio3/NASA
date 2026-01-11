@@ -42,8 +42,37 @@ class NASAAPI {
 
     // MARK: - Browse All Patents (by category)
     func browsePatents(category: PatentCategory = .all, page: Int = 1) async throws -> [Patent] {
-        let query = category == .all ? "" : category.rawValue
-        return try await searchPatents(query: query.isEmpty ? "technology" : query, page: page)
+        // For "All", just search general term
+        if category == .all {
+            return try await searchPatents(query: "technology", page: page)
+        }
+
+        // Search by category name
+        let patents = try await searchPatents(query: category.rawValue, page: page)
+
+        // Filter to only include patents that actually match the category
+        let filtered = patents.filter { patent in
+            let patentCategory = patent.category.lowercased()
+            let targetCategory = category.rawValue.lowercased()
+
+            // Exact match or contains the key term
+            if patentCategory == targetCategory {
+                return true
+            }
+
+            // Check for partial matches (e.g., "Health" matches "Health Medicine and Biotechnology")
+            let targetWords = targetCategory.components(separatedBy: .whitespaces)
+            for word in targetWords where word.count > 3 {
+                if patentCategory.contains(word) {
+                    return true
+                }
+            }
+
+            return false
+        }
+
+        // If filtering removed everything, return unfiltered (API might have different category names)
+        return filtered.isEmpty ? patents : filtered
     }
 
     // MARK: - Get Featured/Recent Patents
