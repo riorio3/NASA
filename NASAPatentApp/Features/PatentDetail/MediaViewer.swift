@@ -188,38 +188,12 @@ struct VideoPlayerView: View {
         ZStack {
             Color.black.ignoresSafeArea()
 
-            VStack(spacing: 30) {
-                // Video icon
-                Image(systemName: isYouTubeURL(videoURL) ? "play.rectangle.fill" : "video.fill")
-                    .font(.system(size: 80))
-                    .foregroundStyle(isYouTubeURL(videoURL) ? .red : .blue)
-
-                Text(isYouTubeURL(videoURL) ? "YouTube Video" : "Video")
-                    .font(.title2.bold())
-                    .foregroundStyle(.white)
-
-                // Open button
-                if let url = URL(string: videoURL) {
-                    Button {
-                        openURL(url)
-                        isPresented = false
-                    } label: {
-                        HStack {
-                            Image(systemName: "play.fill")
-                            Text("Open Video")
-                        }
-                        .font(.headline)
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 32)
-                        .padding(.vertical, 16)
-                        .background(isYouTubeURL(videoURL) ? Color.red : Color.blue)
-                        .clipShape(Capsule())
-                    }
-                }
-
-                Text("Opens in browser or app")
-                    .font(.caption)
-                    .foregroundStyle(.gray)
+            if isYouTubeURL(videoURL) {
+                // YouTube - must open externally
+                youTubeView
+            } else {
+                // Direct video URL - play in app
+                InAppVideoPlayer(urlString: videoURL)
             }
 
             // Close button
@@ -240,8 +214,76 @@ struct VideoPlayerView: View {
         }
     }
 
+    private var youTubeView: some View {
+        VStack(spacing: 30) {
+            Image(systemName: "play.rectangle.fill")
+                .font(.system(size: 80))
+                .foregroundStyle(.red)
+
+            Text("YouTube Video")
+                .font(.title2.bold())
+                .foregroundStyle(.white)
+
+            if let url = URL(string: videoURL) {
+                Button {
+                    openURL(url)
+                    isPresented = false
+                } label: {
+                    HStack {
+                        Image(systemName: "play.fill")
+                        Text("Watch on YouTube")
+                    }
+                    .font(.headline)
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 32)
+                    .padding(.vertical, 16)
+                    .background(Color.red)
+                    .clipShape(Capsule())
+                }
+            }
+
+            Text("Opens in YouTube app")
+                .font(.caption)
+                .foregroundStyle(.gray)
+        }
+    }
+
     private func isYouTubeURL(_ url: String) -> Bool {
         url.contains("youtube.com") || url.contains("youtu.be")
+    }
+}
+
+// MARK: - In-App Video Player
+
+struct InAppVideoPlayer: View {
+    let urlString: String
+    @State private var player: AVPlayer?
+
+    var body: some View {
+        Group {
+            if let player = player {
+                VideoPlayer(player: player)
+                    .ignoresSafeArea()
+            } else {
+                ProgressView()
+                    .scaleEffect(1.5)
+                    .tint(.white)
+            }
+        }
+        .onAppear {
+            setupPlayer()
+        }
+        .onDisappear {
+            player?.pause()
+            player = nil
+        }
+    }
+
+    private func setupPlayer() {
+        guard let url = URL(string: urlString) else { return }
+        let avPlayer = AVPlayer(url: url)
+        player = avPlayer
+        avPlayer.play()
     }
 }
 
