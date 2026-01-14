@@ -10,7 +10,7 @@ struct SettingsView: View {
     private let anthropicURL = URL(string: "https://console.anthropic.com/")!
     private let nasaPortalURL = URL(string: "https://technology.nasa.gov/")!
     private let nasaLicenseURL = URL(string: "https://technology.nasa.gov/license")!
-    private let privacyPolicyURL = URL(string: "https://riorio3.github.io/nasa-patent-app/privacy")!
+    private let privacyPolicyURL = URL(string: "https://riorio3.github.io/NASA/privacy-policy")!
 
     var body: some View {
         NavigationStack {
