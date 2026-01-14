@@ -1,3 +1,8 @@
+---
+layout: default
+title: Privacy Policy
+---
+
 # Privacy Policy for NASA Patent App
 
 **Last Updated: January 14, 2025**
