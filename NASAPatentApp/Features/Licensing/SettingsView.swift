@@ -95,7 +95,7 @@ struct SettingsView: View {
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
 
-                        Link(destination: URL(string: "https://technology.nasa.gov/startup")!) {
+                        Link(destination: URL(string: "https://technology.nasa.gov/license")!) {
                             Text("Learn More")
                                 .font(.subheadline.bold())
                         }
