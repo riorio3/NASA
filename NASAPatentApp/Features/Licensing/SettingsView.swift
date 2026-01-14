@@ -6,6 +6,12 @@ struct SettingsView: View {
     @State private var showDeleteConfirmation = false
     @State private var hasKey = false
 
+    // MARK: - URLs
+    private let anthropicURL = URL(string: "https://console.anthropic.com/")!
+    private let nasaPortalURL = URL(string: "https://technology.nasa.gov/")!
+    private let nasaLicenseURL = URL(string: "https://technology.nasa.gov/license")!
+    private let privacyPolicyURL = URL(string: "https://riorio3.github.io/nasa-patent-app/privacy")!
+
     var body: some View {
         NavigationStack {
             List {
@@ -34,7 +40,7 @@ struct SettingsView: View {
 
                 // Get API Key Section
                 Section {
-                    Link(destination: URL(string: "https://console.anthropic.com/")!) {
+                    Link(destination: anthropicURL) {
                         HStack {
                             VStack(alignment: .leading) {
                                 Text("Get Claude API Key")
@@ -60,7 +66,7 @@ struct SettingsView: View {
                             .foregroundStyle(.secondary)
                     }
 
-                    Link(destination: URL(string: "https://technology.nasa.gov/")!) {
+                    Link(destination: nasaPortalURL) {
                         HStack {
                             Text("NASA Technology Transfer")
                             Spacer()
@@ -69,7 +75,7 @@ struct SettingsView: View {
                         }
                     }
 
-                    Link(destination: URL(string: "https://technology.nasa.gov/license")!) {
+                    Link(destination: nasaLicenseURL) {
                         HStack {
                             Text("Licensing Information")
                             Spacer()
@@ -95,7 +101,7 @@ struct SettingsView: View {
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
 
-                        Link(destination: URL(string: "https://technology.nasa.gov/license")!) {
+                        Link(destination: nasaLicenseURL) {
                             Text("Learn More")
                                 .font(.subheadline.bold())
                         }
@@ -120,6 +126,15 @@ struct SettingsView: View {
                         Spacer()
                         Text("1.0.0")
                             .foregroundStyle(.secondary)
+                    }
+
+                    Link(destination: privacyPolicyURL) {
+                        HStack {
+                            Text("Privacy Policy")
+                            Spacer()
+                            Image(systemName: "arrow.up.right")
+                                .foregroundStyle(.secondary)
+                        }
                     }
                 }
             }

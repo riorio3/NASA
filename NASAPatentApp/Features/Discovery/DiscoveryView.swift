@@ -231,6 +231,7 @@ struct CategoryGridItem: View {
             .clipShape(RoundedRectangle(cornerRadius: 12))
         }
         .buttonStyle(.plain)
+        .accessibilityLabel("Browse \(category.shortName) patents")
     }
 }
 
@@ -253,6 +254,8 @@ struct CategoryPill: View {
             .foregroundStyle(isSelected ? .white : .primary)
             .clipShape(Capsule())
         }
+        .accessibilityLabel("Filter by \(category.shortName)")
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }
 

@@ -6,6 +6,8 @@ struct BusinessAnalysisView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var selectedTab = 0
 
+    private let nasaLicenseURL = URL(string: "https://technology.nasa.gov/license")!
+
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -185,7 +187,7 @@ struct BusinessAnalysisView: View {
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
 
-                Link(destination: URL(string: "https://technology.nasa.gov/startup")!) {
+                Link(destination: nasaLicenseURL) {
                     Text("Learn More")
                         .font(.subheadline.bold())
                 }

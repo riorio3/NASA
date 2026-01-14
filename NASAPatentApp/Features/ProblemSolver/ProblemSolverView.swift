@@ -158,6 +158,8 @@ struct ProblemSolverView: View {
                         Task { await searchForSolutions() }
                     }
                 }
+                .accessibilityLabel("Problem description")
+                .accessibilityHint("Describe a problem and AI will find NASA patents that could help")
 
             Button {
                 isInputFocused = false
@@ -168,6 +170,8 @@ struct ProblemSolverView: View {
                     .foregroundStyle(problemText.isEmpty || isSearching ? .gray : .blue)
             }
             .disabled(problemText.isEmpty || isSearching)
+            .accessibilityLabel("Find solutions")
+            .accessibilityHint("Search NASA patents for solutions to your problem")
         }
     }
 

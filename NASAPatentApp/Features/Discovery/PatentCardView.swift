@@ -53,6 +53,7 @@ struct PatentCardView: View {
                     Image(systemName: patentStore.isSaved(patent) ? "bookmark.fill" : "bookmark")
                         .foregroundStyle(patentStore.isSaved(patent) ? .blue : .secondary)
                 }
+                .accessibilityLabel(patentStore.isSaved(patent) ? "Remove from saved" : "Save patent")
             }
         }
         .padding(12)
@@ -60,6 +61,9 @@ struct PatentCardView: View {
         .background(Color(.systemBackground))
         .clipShape(RoundedRectangle(cornerRadius: 12))
         .shadow(color: .black.opacity(0.1), radius: 4, y: 2)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(patent.title), \(patent.category)")
+        .accessibilityHint("Double tap to view details")
     }
 
     @ViewBuilder
