@@ -189,8 +189,8 @@ struct DiscoveryView: View {
         errorMessage = nil
         hasSearched = true
 
-        // Allow UI to update before network call
-        try? await Task.sleep(nanoseconds: 50_000_000) // 50ms
+        // Yield to let SwiftUI render loading state
+        await Task.yield()
 
         do {
             if searchText.isEmpty {
