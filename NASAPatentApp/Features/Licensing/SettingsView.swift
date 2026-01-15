@@ -5,12 +5,12 @@ struct SettingsView: View {
     @State private var showAPIKey = false
     @State private var showDeleteConfirmation = false
     @State private var hasKey = false
+    @State private var showPrivacyPolicy = false
 
     // MARK: - URLs
     private let anthropicURL = URL(string: "https://console.anthropic.com/")!
     private let nasaPortalURL = URL(string: "https://technology.nasa.gov/")!
     private let nasaLicenseURL = URL(string: "https://technology.nasa.gov/license")!
-    private let privacyPolicyURL = URL(string: "https://riorio3.github.io/NASA/privacy-policy")!
 
     var body: some View {
         NavigationStack {
@@ -128,17 +128,22 @@ struct SettingsView: View {
                             .foregroundStyle(.secondary)
                     }
 
-                    Link(destination: privacyPolicyURL) {
+                    Button {
+                        showPrivacyPolicy = true
+                    } label: {
                         HStack {
                             Text("Privacy Policy")
                             Spacer()
-                            Image(systemName: "arrow.up.right")
+                            Image(systemName: "chevron.right")
                                 .foregroundStyle(.secondary)
                         }
                     }
                 }
             }
             .navigationTitle("Settings")
+            .sheet(isPresented: $showPrivacyPolicy) {
+                PrivacyPolicyView()
+            }
             .confirmationDialog("Remove API Key?", isPresented: $showDeleteConfirmation, titleVisibility: .visible) {
                 Button("Remove", role: .destructive) {
                     KeychainService.shared.deleteAPIKey()
@@ -226,6 +231,98 @@ private struct APIKeyDisplayView: View {
             Button("Remove API Key", role: .destructive, action: onDelete)
         }
         .padding(.vertical, 8)
+    }
+}
+
+// MARK: - Privacy Policy View
+struct PrivacyPolicyView: View {
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    Group {
+                        Text("Last Updated: January 14, 2025")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+
+                        section(title: "Overview", content: "NASA Patent App helps users discover and analyze NASA patents available for licensing. This privacy policy explains how we handle your data.")
+
+                        section(title: "What We Collect") {
+                            VStack(alignment: .leading, spacing: 8) {
+                                bullet("Claude API Key: If you enable AI features, you provide your own Anthropic API key")
+                                bullet("Saved Patents: Patents you bookmark are stored locally on your device")
+                                bullet("Problem History: Your problem-solving queries are stored locally")
+                            }
+                        }
+
+                        section(title: "What We Don't Collect") {
+                            VStack(alignment: .leading, spacing: 8) {
+                                bullet("We do not collect personal information")
+                                bullet("We do not track your location")
+                                bullet("We do not use analytics or tracking")
+                                bullet("We do not sell any data")
+                            }
+                        }
+                    }
+
+                    Group {
+                        section(title: "Data Storage", content: "All data is stored locally on your device. Your API key is stored securely in iOS Keychain. Saved patents and search history are stored in local app storage. We do not operate any servers or databases.")
+
+                        section(title: "Third-Party Services", content: "Patent data is fetched from NASA's public Technology Transfer Portal (technology.nasa.gov). If you enable AI features, your queries are sent to Anthropic's Claude API using your own API key.")
+
+                        section(title: "Data Deletion", content: "You can delete all app data at any time via Settings or by deleting the app from your device.")
+
+                        section(title: "Children's Privacy", content: "This app is not directed at children under 13. We do not knowingly collect data from children.")
+
+                        section(title: "Contact", content: "For questions about this privacy policy, contact us through the App Store listing or leave a review.")
+
+                        section(title: "Changes", content: "We may update this policy. Changes will be reflected in the \"Last Updated\" date.")
+
+                        Text("NASA Patent App is not affiliated with, endorsed by, or sponsored by NASA. Patent data is sourced from NASA's publicly available Technology Transfer Portal.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .padding(.top, 10)
+                    }
+                }
+                .padding()
+            }
+            .navigationTitle("Privacy Policy")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
+    }
+
+    private func section(title: String, content: String) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title)
+                .font(.headline)
+            Text(content)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private func section(title: String, @ViewBuilder content: () -> some View) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title)
+                .font(.headline)
+            content()
+        }
+    }
+
+    private func bullet(_ text: String) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Text("•")
+            Text(text)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+        }
     }
 }
 

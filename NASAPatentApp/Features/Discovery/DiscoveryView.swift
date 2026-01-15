@@ -9,10 +9,13 @@ struct DiscoveryView: View {
     @State private var errorMessage: String?
     @State private var hasSearched = false
 
+    // Pre-computed to avoid recalculation during render
+    private let categories = PatentCategory.allCases
     private let columns = [
         GridItem(.flexible(), spacing: 12, alignment: .top),
         GridItem(.flexible(), spacing: 12, alignment: .top)
     ]
+    private let categoryGridColumns = Array(repeating: GridItem(.flexible(), spacing: 12), count: 4)
 
     var body: some View {
         NavigationStack {
@@ -81,7 +84,7 @@ struct DiscoveryView: View {
     private var categoryPills: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 10) {
-                ForEach(PatentCategory.allCases, id: \.self) { category in
+                ForEach(categories, id: \.self) { category in
                     CategoryPill(
                         category: category,
                         isSelected: selectedCategory == category
@@ -161,8 +164,8 @@ struct DiscoveryView: View {
     }
 
     private var categoryGrid: some View {
-        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 4), spacing: 12) {
-            ForEach(PatentCategory.allCases, id: \.self) { category in
+        LazyVGrid(columns: categoryGridColumns, spacing: 12) {
+            ForEach(categories, id: \.self) { category in
                 CategoryGridItem(category: category) {
                     selectedCategory = category
                     Task { await search() }

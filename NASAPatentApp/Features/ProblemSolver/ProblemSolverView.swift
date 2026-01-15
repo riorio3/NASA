@@ -532,7 +532,7 @@ struct HistoryEntryRow: View {
 
                 Spacer()
 
-                Text(entry.date, style: .relative)
+                Text(entry.date.formatted(date: .abbreviated, time: .shortened))
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }

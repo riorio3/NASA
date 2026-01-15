@@ -33,13 +33,6 @@ struct SavedPatentsView: View {
             Text("Patents you save will appear here for quick access")
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
-
-            NavigationLink {
-                DiscoveryView()
-            } label: {
-                Label("Browse Patents", systemImage: "magnifyingglass")
-            }
-            .buttonStyle(.borderedProminent)
         }
         .padding()
     }
