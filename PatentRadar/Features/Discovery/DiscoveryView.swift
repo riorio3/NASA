@@ -201,9 +201,7 @@ struct DiscoveryView: View {
             } else {
                 results = try await NASAAPI.shared.searchPatents(query: searchText)
             }
-            withAnimation(.easeInOut(duration: 0.2)) {
-                patents = results
-            }
+            patents = results
         } catch is CancellationError {
             // Ignore
         } catch {

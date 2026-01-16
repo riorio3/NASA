@@ -39,7 +39,9 @@ class NASAAPI {
         }
 
         let patents = try await fetchCategoryFromNetwork(slug: slug)
-        categoryCache[slug] = (patents, Date())
+        if !patents.isEmpty {
+            categoryCache[slug] = (patents, Date())
+        }
         return patents
     }
 
@@ -48,13 +50,17 @@ class NASAAPI {
         try Task.checkCancellation()
 
         let urlString = "\(baseURL)/searchosapicat/multi/aw/patent/\(slug)/1/200/"
-        guard let url = URL(string: urlString) else { return [] }
+        guard let url = URL(string: urlString) else {
+            throw NASAAPIError.invalidURL
+        }
 
         let (data, response) = try await session.data(from: url)
         try Task.checkCancellation()
 
         guard let httpResponse = response as? HTTPURLResponse,
-              httpResponse.statusCode == 200 else { return [] }
+              httpResponse.statusCode == 200 else {
+            throw NASAAPIError.invalidResponse
+        }
 
         let results = try JSONDecoder().decode([ElasticSearchResult].self, from: data)
 
