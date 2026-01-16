@@ -53,7 +53,7 @@ struct DiscoveryView: View {
                     }
                 }
             }
-            .searchable(text: $searchText, prompt: "Search NASA patents...")
+            .searchable(text: $searchText, prompt: "Search patents...")
             .onSubmit(of: .search) {
                 guard !searchText.trimmingCharacters(in: .whitespaces).isEmpty else { return }
                 Task { await search() }
@@ -102,7 +102,7 @@ struct DiscoveryView: View {
         VStack(spacing: 16) {
             ProgressView()
                 .scaleEffect(1.5)
-            Text("Searching NASA database...")
+            Text("Searching patents...")
                 .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity)
@@ -148,10 +148,10 @@ struct DiscoveryView: View {
                     .font(.system(size: 48))
                     .foregroundStyle(.blue)
 
-                Text("Explore NASA Patents")
+                Text("Explore Patents")
                     .font(.title2.bold())
 
-                Text("Search 600+ NASA patents available for licensing")
+                Text("Search 600+ government patents available for licensing")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)

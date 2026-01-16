@@ -101,10 +101,10 @@ struct ProblemSolverView: View {
                 .font(.system(size: 48))
                 .foregroundStyle(.yellow)
 
-            Text("Solve with NASA Tech")
+            Text("Find Patent Solutions")
                 .font(.title3.bold())
 
-            Text("Describe your challenge and AI will find NASA patents that could help.")
+            Text("Describe your challenge and AI will find patents that could help.")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -186,7 +186,7 @@ struct ProblemSolverView: View {
                     }
                 }
                 .accessibilityLabel("Problem description")
-                .accessibilityHint("Describe a problem and AI will find NASA patents that could help")
+                .accessibilityHint("Describe a problem and AI will find patents that could help")
 
             Button {
                 isInputFocused = false
@@ -198,7 +198,7 @@ struct ProblemSolverView: View {
             }
             .disabled(problemText.isEmpty || isSearching)
             .accessibilityLabel("Find solutions")
-            .accessibilityHint("Search NASA patents for solutions to your problem")
+            .accessibilityHint("Search patents for solutions to your problem")
         }
     }
 
