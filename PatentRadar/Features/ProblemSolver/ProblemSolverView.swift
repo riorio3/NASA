@@ -35,6 +35,7 @@ struct ProblemSolverView: View {
                 .onTapGesture {
                     isInputFocused = false
                 }
+                .scrollDismissesKeyboard(.interactively)
 
                 Divider()
 
@@ -59,6 +60,16 @@ struct ProblemSolverView: View {
                         Button("Clear") {
                             resetSearch()
                         }
+                    }
+                }
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button {
+                        isInputFocused = false
+                    } label: {
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundStyle(.secondary)
                     }
                 }
             }

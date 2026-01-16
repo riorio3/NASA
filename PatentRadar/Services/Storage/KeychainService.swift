@@ -4,7 +4,7 @@ import Security
 class KeychainService {
     static let shared = KeychainService()
 
-    private let service = "com.nasapatentapp.apikey"
+    private let service = "com.patentradar.apikey"
     private let account = "claude-api-key"
 
     // Cache to avoid repeated Keychain queries

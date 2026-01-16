@@ -27,7 +27,21 @@ class BusinessAnalysisHistoryStore: ObservableObject {
     private let maxHistoryItems = 50
 
     private init() {
-        loadHistory()
+        // Defer loading to background to not block app launch
+        Task.detached(priority: .userInitiated) { [weak self] in
+            let entries = Self.loadHistoryFromDisk()
+            await MainActor.run {
+                self?.history = entries
+            }
+        }
+    }
+
+    private static func loadHistoryFromDisk() -> [BusinessAnalysisHistoryEntry] {
+        guard let data = UserDefaults.standard.data(forKey: "businessAnalysisHistory"),
+              let entries = try? JSONDecoder().decode([BusinessAnalysisHistoryEntry].self, from: data) else {
+            return []
+        }
+        return entries
     }
 
     func addEntry(patent: Patent, analysis: BusinessAnalysis) {
@@ -61,15 +75,6 @@ class BusinessAnalysisHistoryStore: ObservableObject {
         history.filter { $0.patent.id == patentId }
     }
 
-    private func loadHistory() {
-        guard let data = UserDefaults.standard.data(forKey: storageKey) else { return }
-
-        do {
-            history = try JSONDecoder().decode([BusinessAnalysisHistoryEntry].self, from: data)
-        } catch {
-            history = []
-        }
-    }
 
     private func saveHistory() {
         do {

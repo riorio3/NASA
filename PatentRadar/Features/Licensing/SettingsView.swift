@@ -247,7 +247,7 @@ struct PrivacyPolicyView: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
 
-                        section(title: "Overview", content: "NASA Patent App helps users discover and analyze NASA patents available for licensing. This privacy policy explains how we handle your data.")
+                        section(title: "Overview", content: "PatentRadar helps users discover and analyze NASA patents available for licensing. This privacy policy explains how we handle your data.")
 
                         section(title: "What We Collect") {
                             VStack(alignment: .leading, spacing: 8) {
@@ -280,7 +280,7 @@ struct PrivacyPolicyView: View {
 
                         section(title: "Changes", content: "We may update this policy. Changes will be reflected in the \"Last Updated\" date.")
 
-                        Text("NASA Patent App is not affiliated with, endorsed by, or sponsored by NASA. Patent data is sourced from NASA's publicly available Technology Transfer Portal.")
+                        Text("PatentRadar is not affiliated with, endorsed by, or sponsored by NASA. Patent data is sourced from NASA's publicly available Technology Transfer Portal.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                             .padding(.top, 10)

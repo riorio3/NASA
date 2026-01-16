@@ -29,7 +29,21 @@ class ProblemHistoryStore: ObservableObject {
     private let maxHistoryItems = 20
 
     private init() {
-        loadHistory()
+        // Defer loading to background to not block app launch
+        Task.detached(priority: .userInitiated) { [weak self] in
+            let entries = Self.loadHistoryFromDisk()
+            await MainActor.run {
+                self?.history = entries
+            }
+        }
+    }
+
+    private static func loadHistoryFromDisk() -> [ProblemHistoryEntry] {
+        guard let data = UserDefaults.standard.data(forKey: "problemSolverHistory"),
+              let entries = try? JSONDecoder().decode([ProblemHistoryEntry].self, from: data) else {
+            return []
+        }
+        return entries
     }
 
     func addEntry(problem: String, solution: ProblemSolution, matchedPatents: [Patent]) {
@@ -60,15 +74,6 @@ class ProblemHistoryStore: ObservableObject {
         saveHistory()
     }
 
-    private func loadHistory() {
-        guard let data = UserDefaults.standard.data(forKey: storageKey) else { return }
-
-        do {
-            history = try JSONDecoder().decode([ProblemHistoryEntry].self, from: data)
-        } catch {
-            history = []
-        }
-    }
 
     private func saveHistory() {
         do {

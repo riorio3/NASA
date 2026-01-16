@@ -1,7 +1,7 @@
 import SwiftUI
 
 @main
-struct NASAPatentApp: App {
+struct PatentRadarApp: App {
     @StateObject private var patentStore = PatentStore()
 
     init() {
@@ -53,12 +53,25 @@ class PatentStore: ObservableObject {
     private let savedPatentsKey = "savedPatents"
 
     init() {
-        // Defer loading to not block app launch
-        Task { @MainActor in
-            loadSavedPatents()
-            loadAPIKey()
-            isReady = true
+        // Defer loading to background to not block app launch
+        Task.detached(priority: .userInitiated) { [weak self] in
+            let patents = Self.loadSavedPatentsFromDisk()
+            let key = KeychainService.shared.getAPIKey() ?? ""
+
+            await MainActor.run {
+                self?.savedPatents = patents
+                self?.apiKey = key
+                self?.isReady = true
+            }
         }
+    }
+
+    private nonisolated static func loadSavedPatentsFromDisk() -> [Patent] {
+        guard let data = UserDefaults.standard.data(forKey: "savedPatents"),
+              let patents = try? JSONDecoder().decode([Patent].self, from: data) else {
+            return []
+        }
+        return patents
     }
 
     func savePatent(_ patent: Patent) {
@@ -77,12 +90,6 @@ class PatentStore: ObservableObject {
         savedPatents.contains { $0.id == patent.id }
     }
 
-    private func loadSavedPatents() {
-        if let data = UserDefaults.standard.data(forKey: savedPatentsKey),
-           let patents = try? JSONDecoder().decode([Patent].self, from: data) {
-            savedPatents = patents
-        }
-    }
 
     private func persistSavedPatents() {
         if let data = try? JSONEncoder().encode(savedPatents) {
